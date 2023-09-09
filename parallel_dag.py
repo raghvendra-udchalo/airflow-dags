@@ -1,22 +1,33 @@
-from airflow.decorators import dag, task
-from airflow.operators.bash import BashOperator
+from airflow import DAG
+from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime, timedelta
 
-from datetime import datetime
 
-@dag(start_date=datetime(2023, 1 , 1), schedule='@daily', catchup=False)
-def parallel_dag():
+default_args = {
+    "owner": "airflow",
+    "depends_on_past": False,
+    "start_date": datetime(2023, 9, 8),
+    "email": ["support@airflow.com"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5)
+    # 'queue': 'bash_queue',
+    # 'pool': 'backfill',
+    # 'priority_weight': 10,
+    # 'end_date': datetime(2021, 9, 9),
+}
 
-    tasks = [BashOperator(task_id='task_{0}'.format(t), bash_command='sleep 60'.format(t)) for t in range(1, 4)]
+def parsing():
+    return True
 
-    @task
-    def task_4(data):
-        print(data)
-        return 'done'
-    
-    @task
-    def task_5(data):
-        print(data)
+def processing():
+    return True
 
-    tasks >> task_5(task_4(42))
+with DAG("simple_pipe", default_args=default_args, schedule_interval="*/5 * * * *", catchup=False) as dag:
+    t1 = PythonOperator(task_id="parsing", python_callable=parsing)
+    t2 = PythonOperator(task_id="processing", python_callable=processing)
+    t3 = BashOperator(task_id="storing", bash_command="exit 0")
 
-parallel_dag()
+    t1 >> t2 >> t3
